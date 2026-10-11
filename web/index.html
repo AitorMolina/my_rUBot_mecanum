@@ -156,11 +156,17 @@
       font-size: 0.8rem;
     }
 
-    #resetMapBtn {
+    .map-toolbar button {
       padding: 6px 10px;
       border: 1px solid #bbb;
       border-radius: 6px;
       cursor: pointer;
+    }
+
+    #mappingBtn.active {
+      color: #fff;
+      background: #2ecc71;
+      border-color: #2ecc71;
     }
 
     .image-view {
@@ -244,6 +250,7 @@
     <div class="map-display">
       <div class="map-toolbar">
         <h3>Map + LiDAR</h3>
+        <button id="mappingBtn" type="button" aria-pressed="false">Mapping: OFF</button>
         <button id="resetMapBtn" type="button">Reset map</button>
       </div>
       <p class="map-scale">X/Y: -1.5 to +1.5 m &middot; 10 intervals of 0.30 m</p>
@@ -278,7 +285,7 @@
     const ROBOT_WID = 0.20;        // 20cm (Y lateral)
     const SPEED_VECTOR_GAIN = 0.5; // metres de fletxa per (m/s)
     const maxSpeedX = 0.2;
-    const maxSpeedY = 0.3;
+    const maxSpeedY = 0.2;
     const distanceFactor = 75;
 
     let currentLinearX = 0;
@@ -288,6 +295,10 @@
     let mapImage = new Image();
     let latestScan = null;
     const occupancyEvidence = new Int16Array(MAP_GRID_WIDTH * MAP_GRID_HEIGHT);
+    let mappingEnabled = false;
+    let mapOriginSet = false;
+    let mapOriginX = 0;
+    let mapOriginY = 0;
 
     let odomCenterSet = false;
     let odomCenterX = 0;
@@ -460,7 +471,10 @@
       scanTopic.subscribe(msg => {
         latestScan = msg;
         if (odomCenterSet && yawOffsetSet) {
-          updateOccupancyGrid(msg);
+          if (mappingEnabled) {
+            ensureMapOrigin();
+            updateOccupancyGrid(msg);
+          }
           drawRobotState(lastRobotX, lastRobotY,
                          lastVelocityX, lastVelocityY,
                          lastRobotYaw, latestScan);
@@ -511,6 +525,27 @@
       return [xWorld, -yLeftWorld];
     }
 
+    function ensureMapOrigin() {
+      if (!mapOriginSet && odomCenterSet) {
+        mapOriginX = lastRobotX;
+        mapOriginY = lastRobotY;
+        mapOriginSet = true;
+      }
+    }
+
+    function toggleMapping() {
+      mappingEnabled = !mappingEnabled;
+      if (mappingEnabled) ensureMapOrigin();
+
+      const button = document.getElementById('mappingBtn');
+      button.textContent = mappingEnabled ? 'Mapping: ON' : 'Mapping: OFF';
+      button.classList.toggle('active', mappingEnabled);
+      button.setAttribute('aria-pressed', String(mappingEnabled));
+      drawRobotState(lastRobotX, lastRobotY,
+                     lastVelocityX, lastVelocityY,
+                     lastRobotYaw, latestScan);
+    }
+
     function updateOccupancyGrid(scanMsg) {
       const ranges = scanMsg.ranges || [];
       const rangeMin = scanMsg.range_min;
@@ -537,14 +572,14 @@
         for (let d = rangeMin; d < freeEnd; d += rayStep) {
           const [x, y] = scanPointInDisplay(d, angle,
                                            lastRobotX, lastRobotY, lastRobotYaw);
-          const index = worldToGrid(x, y);
+          const index = worldToGrid(x - mapOriginX, y - mapOriginY);
           if (index >= 0) freeCells.add(index);
         }
 
         if (hasHit) {
           const [x, y] = scanPointInDisplay(rayRange, angle,
                                            lastRobotX, lastRobotY, lastRobotYaw);
-          const index = worldToGrid(x, y);
+          const index = worldToGrid(x - mapOriginX, y - mapOriginY);
           if (index >= 0) hitCells.add(index);
         }
       }
@@ -563,6 +598,11 @@
 
     function resetMap() {
       occupancyEvidence.fill(0);
+      if (odomCenterSet) {
+        mapOriginX = lastRobotX;
+        mapOriginY = lastRobotY;
+        mapOriginSet = true;
+      }
       drawRobotState(lastRobotX, lastRobotY,
                      lastVelocityX, lastVelocityY,
                      lastRobotYaw, latestScan);
@@ -633,6 +673,8 @@
       const ctx = canvas.getContext('2d');
       const W = canvas.clientWidth || canvas.width;
       const H = canvas.clientHeight || canvas.height;
+      const mapRobotX = robotX - mapOriginX;
+      const mapRobotY = robotY - mapOriginY;
 
       ctx.clearRect(0, 0, W, H);
 
@@ -666,7 +708,8 @@
           const [Xd, Yd] = scanPointInDisplay(r, a,
                                              robotX, robotY, yawRel);
 
-          const [px, py] = worldToPixel(Xd, Yd, W, H);
+          const [px, py] = worldToPixel(Xd - mapOriginX,
+                                        Yd - mapOriginY, W, H);
           if (px >= 0 && px <= W && py >= 0 && py <= H) {
             ctx.fillRect(px, py, 2, 2);
           }
@@ -676,7 +719,7 @@
       }
 
       // ---- Robot rectangle 30x20 cm ----
-      const [cx, cy] = worldToPixel(robotX, robotY, W, H);
+      const [cx, cy] = worldToPixel(mapRobotX, mapRobotY, W, H);
       const hx = ROBOT_LEN / 2;
       const hy = ROBOT_WID / 2;
 
@@ -693,8 +736,8 @@
         const [xr, yr] = corners[i];
         const c = Math.cos(yawDraw);
         const s = Math.sin(yawDraw);
-        const Xw = robotX + c * xr - s * yr;
-        const Yw = robotY + s * xr + c * yr;
+        const Xw = mapRobotX + c * xr - s * yr;
+        const Yw = mapRobotY + s * xr + c * yr;
         const [px, py] = worldToPixel(Xw, Yw, W, H);
         if (i === 0) ctx.moveTo(px, py);
         else ctx.lineTo(px, py);
@@ -710,8 +753,8 @@
       // ---- Orientació (blava) amb yawDraw ----
       {
         const arrowLen = 0.20;
-        const Xtip = robotX + Math.cos(yawDraw) * arrowLen;
-        const Ytip = robotY + Math.sin(yawDraw) * arrowLen;
+        const Xtip = mapRobotX + Math.cos(yawDraw) * arrowLen;
+        const Ytip = mapRobotY + Math.sin(yawDraw) * arrowLen;
         const [ax, ay] = worldToPixel(Xtip, Ytip, W, H);
         ctx.beginPath();
         ctx.moveTo(cx, cy);
@@ -725,8 +768,8 @@
       const speed = Math.hypot(velX, velY);
       if (speed > 0.01) {
         const len_m = speed * SPEED_VECTOR_GAIN;
-        const Xv = robotX + (velX / speed) * len_m;
-        const Yv = robotY + (velY / speed) * len_m;
+        const Xv = mapRobotX + (velX / speed) * len_m;
+        const Yv = mapRobotY + (velY / speed) * len_m;
         const [vx_px, vy_px] = worldToPixel(Xv, Yv, W, H);
 
         ctx.beginPath();
@@ -834,6 +877,7 @@
     });
     window.addEventListener('DOMContentLoaded', () => {
       resizeMapCanvas();
+      document.getElementById('mappingBtn').addEventListener('click', toggleMapping);
       document.getElementById('resetMapBtn').addEventListener('click', resetMap);
       const robotInput = document.getElementById('robotNumber');
       robotInput.addEventListener('change', (e) => {
