@@ -63,7 +63,6 @@ ros2 run demo_nodes_cpp talker
 ## 2. Set Up Systemd Service: my_robot.service
 This service will launch your bringup automatically on boot.
 - Copy files to home directory
-    - my_robot_service.sh
     - start_robot.sh
 - Make both scripts executable:
     ````bash
