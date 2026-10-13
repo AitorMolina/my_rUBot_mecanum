@@ -143,9 +143,11 @@ To modify the my_robot.service:
     nano /home/ubuntu/start_robot.sh
     ```
 - Make changes
-- Stop the service:
+- Stop the service, reload daemon and enable to next start:
     ```bash
     sudo systemctl stop my_robot.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable my_robot.service
     ```
 - Launch manually to test:
     ```bash
