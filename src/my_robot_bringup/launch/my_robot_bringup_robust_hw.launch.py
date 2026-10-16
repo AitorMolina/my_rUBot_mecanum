@@ -7,7 +7,7 @@ from launch.actions import (
     EmitEvent,
     ExecuteProcess,
     IncludeLaunchDescription,
-    LogError,
+    LogInfo,
     RegisterEventHandler,
     TimerAction,
 )
@@ -178,7 +178,7 @@ def generate_launch_description():
         del context
         if event.returncode != 0:
             return [
-                LogError(msg='Robot hardware check failed; stopping bringup.'),
+                LogInfo(msg='ERROR: Robot hardware check failed; stopping bringup.'),
                 EmitEvent(event=Shutdown(reason='Robot hardware is not ready')),
             ]
         return [

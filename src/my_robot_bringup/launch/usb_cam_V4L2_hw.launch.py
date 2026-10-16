@@ -1,3 +1,5 @@
+from typing import List
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -49,7 +51,7 @@ def generate_launch_description():
             'video_device': video_device,
             'image_size': ParameterValue(
                 ['[', image_width, ', ', image_height, ']'],
-                value_type=list,
+                value_type=List[int],
             ),
             'pixel_format': pixel_format,
             'output_encoding': output_encoding,
