@@ -1,10 +1,9 @@
 import math
-import time
-
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import LaserScan
 
 
@@ -14,20 +13,18 @@ class RubotWallFollower(Node):
 
         # Parameters
         self.declare_parameter('follow_distance', 0.35)
-        self.declare_parameter('forward_speed', 0.18)
-        self.declare_parameter('turn_speed', 0.30)
-        self.declare_parameter('time_to_stop', 80.0)
+        self.declare_parameter('forward_speed', 0.40)
+        self.declare_parameter('turn_speed', 0.60)
         self.declare_parameter('tolerance', 0.05)
         self.declare_parameter('right_detection_limit', 1.0)
         self.declare_parameter('lateral_gain', 0.5)
         self.declare_parameter('alignment_gain', 0.5)
-        self.declare_parameter('max_lateral_speed', 0.18)
+        self.declare_parameter('max_lateral_speed', 0.36)
         self.declare_parameter('max_angular_speed', 0.60)
 
         self.follow_distance = float(self.get_parameter('follow_distance').value)
         self.v_lin = float(self.get_parameter('forward_speed').value)
         self.v_ang = float(self.get_parameter('turn_speed').value)
-        self.time_to_stop = float(self.get_parameter('time_to_stop').value)
         self.tol = float(self.get_parameter('tolerance').value)
         self.right_detection_limit = float(
             self.get_parameter('right_detection_limit').value
@@ -45,7 +42,6 @@ class RubotWallFollower(Node):
         self._state_action = 'Idle'
         self._last_action_logged = None
         self._shutting_down = False
-        self.start_time_s = self.get_clock().now().nanoseconds * 1e-9
 
         self.subscription = self.create_subscription(
             LaserScan, '/scan', self.laser_callback, qos_profile_sensor_data
@@ -53,38 +49,26 @@ class RubotWallFollower(Node):
         self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
 
         self.info_timer = self.create_timer(1.0, self.log_info)
-        self.stop_timer = self.create_timer(0.05, self.stop_watchdog)
         self.cmd_timer = self.create_timer(0.1, self.cmd_publish_timer_cb)
 
         self.get_logger().info(
             'rUBot holonomic wall follower with lateral and alignment correction.'
         )
 
-    def stop_watchdog(self):
-        if self._shutting_down:
-            return
-
-        now = self.get_clock().now().nanoseconds * 1e-9
-        if now - self.start_time_s >= self.time_to_stop:
-            self.get_logger().info('Stopping due to timeout.')
-            self.stop()
-
     def stop(self):
         self._shutting_down = True
         self.cmd = Twist()
 
-        for timer in [self.info_timer, self.stop_timer, self.cmd_timer]:
+        for timer in [self.info_timer, self.cmd_timer]:
             try:
                 timer.cancel()
             except Exception:
                 pass
 
-        for _ in range(3):
-            try:
-                self.publisher.publish(self.cmd)
-                time.sleep(0.05)
-            except Exception:
-                break
+        try:
+            self.publisher.publish(self.cmd)
+        except Exception:
+            pass
 
     def cmd_publish_timer_cb(self):
         if not self._shutting_down:
@@ -201,7 +185,10 @@ class RubotWallFollower(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(
+        args=args,
+        signal_handler_options=SignalHandlerOptions.NO,
+    )
     node = RubotWallFollower()
 
     try:

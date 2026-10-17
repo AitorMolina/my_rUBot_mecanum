@@ -13,16 +13,14 @@ class WallFollower(Node):
 
         # Parameters
         self.declare_parameter('follow_distance', 0.35)  # desired distance to right wall
-        self.declare_parameter('forward_speed', 0.36)    # linear speed
+        self.declare_parameter('forward_speed', 0.40)    # linear speed
         self.declare_parameter('turn_speed', 0.60)       # angular speed
-        self.declare_parameter('time_to_stop', 80.0)     # auto-stop
         self.declare_parameter('tolerance', 0.05)        # band around follow_distance
         self.declare_parameter('right_detection_limit', 1.0)  # max distance to consider RIGHT wall visible
 
         self.follow_distance = float(self.get_parameter('follow_distance').value)
         self.v_lin = float(self.get_parameter('forward_speed').value)
         self.v_ang = float(self.get_parameter('turn_speed').value)
-        self.time_to_stop = float(self.get_parameter('time_to_stop').value)
         self.tol = float(self.get_parameter('tolerance').value)
         self.right_detection_limit = float(
             self.get_parameter('right_detection_limit').value
@@ -39,7 +37,6 @@ class WallFollower(Node):
 
         # Timers
         self.info_timer = self.create_timer(1.0, self.log_info)
-        self.stop_timer = self.create_timer(0.05, self.stop_watchdog)
 
         # Periodic cmd_vel publisher at 10 Hz (0.1 s)
         self.cmd_timer = self.create_timer(0.1, self.cmd_publish_timer_cb)
@@ -48,21 +45,9 @@ class WallFollower(Node):
         self._last_action_logged = None
         self._shutting_down = False
 
-        self.start_time_s = self.get_clock().now().nanoseconds * 1e-9
-
         self.get_logger().info(
             "WallFollower (RIGHT tol, BACK_RIGHT when closest) - differential drive."
         )
-
-    #--------------------------------------------------------------------
-    def stop_watchdog(self):
-        """Stop the robot after time_to_stop seconds."""
-        if self._shutting_down:
-            return
-        now = self.get_clock().now().nanoseconds * 1e-9
-        if now - self.start_time_s >= self.time_to_stop:
-            self.get_logger().info("Stopping due to timeout.")
-            self.stop()
 
     #--------------------------------------------------------------------
     def stop(self):
@@ -73,7 +58,7 @@ class WallFollower(Node):
         self.cmd = Twist()
 
         # Cancel timers safely
-        for t in [self.info_timer, self.stop_timer, self.cmd_timer]:
+        for t in [self.info_timer, self.cmd_timer]:
             try:
                 t.cancel()
             except Exception:

@@ -15,20 +15,18 @@ def generate_launch_description():
         'alignment_gain': LaunchConfiguration('alignment_gain'),
         'max_lateral_speed': LaunchConfiguration('max_lateral_speed'),
         'max_angular_speed': LaunchConfiguration('max_angular_speed'),
-        'time_to_stop': LaunchConfiguration('time_to_stop'),
     }
 
     return LaunchDescription([
         DeclareLaunchArgument('follow_distance', default_value='0.35'),
         DeclareLaunchArgument('tolerance', default_value='0.05'),
         DeclareLaunchArgument('right_detection_limit', default_value='1.0'),
-        DeclareLaunchArgument('forward_speed', default_value='0.18'),
-        DeclareLaunchArgument('turn_speed', default_value='0.30'),
+        DeclareLaunchArgument('forward_speed', default_value='0.40'),
+        DeclareLaunchArgument('turn_speed', default_value='0.60'),
         DeclareLaunchArgument('lateral_gain', default_value='0.5'),
         DeclareLaunchArgument('alignment_gain', default_value='0.5'),
-        DeclareLaunchArgument('max_lateral_speed', default_value='0.18'),
+        DeclareLaunchArgument('max_lateral_speed', default_value='0.36'),
         DeclareLaunchArgument('max_angular_speed', default_value='0.60'),
-        DeclareLaunchArgument('time_to_stop', default_value='80.0'),
         Node(
             package='my_robot_control',
             executable='my_rubot_wallfollower_holonomic_exec',

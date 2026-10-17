@@ -2,13 +2,12 @@
 """Student template for an improved holonomic right-wall follower."""
 
 import math
-import time
-
 import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import LaserScan
 
 
@@ -31,10 +30,10 @@ class ImprovedHolonomicWallFollower(Node):
             self.declare_parameter('max_front_length', 0.50).value
         )
         self.forward_speed = float(
-            self.declare_parameter('forward_speed', 0.20).value
+            self.declare_parameter('forward_speed', 0.40).value
         )
         self.lateral_speed = float(
-            self.declare_parameter('lateral_speed', 0.18).value
+            self.declare_parameter('lateral_speed', 0.36).value
         )
         self.distance_gain = float(
             self.declare_parameter('distance_gain', 0.80).value
@@ -127,19 +126,20 @@ class ImprovedHolonomicWallFollower(Node):
         self.command = Twist()
 
     def stop(self):
-        """Publish zero repeatedly before destroying the node."""
+        """Publish one zero command before destroying the node."""
         self.command = Twist()
         self.timer.cancel()
-        for _ in range(3):
-            try:
-                self.publisher.publish(self.command)
-                time.sleep(0.05)
-            except Exception:
-                break
+        try:
+            self.publisher.publish(self.command)
+        except Exception:
+            pass
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(
+        args=args,
+        signal_handler_options=SignalHandlerOptions.NO,
+    )
     node = ImprovedHolonomicWallFollower()
     try:
         rclpy.spin(node)
