@@ -11,14 +11,14 @@ class WallFollower(Node):
         super().__init__('wall_follower_node')
 
         # Parameters
-        self.declare_parameter('distance_limit', 0.5)    # desired distance to right wall
-        self.declare_parameter('forward_speed', 0.20)    # linear speed
-        self.declare_parameter('turn_speed', 0.40)       # angular speed
-        self.declare_parameter('time_to_stop', 30.0)     # auto-stop
-        self.declare_parameter('tolerance', 0.05)        # band around base_distance (RIGHT)
+        self.declare_parameter('follow_distance', 0.35)  # desired distance to right wall
+        self.declare_parameter('forward_speed', 0.18)    # linear speed
+        self.declare_parameter('turn_speed', 0.30)       # angular speed
+        self.declare_parameter('time_to_stop', 80.0)     # auto-stop
+        self.declare_parameter('tolerance', 0.05)        # band around follow_distance
         self.declare_parameter('right_detection_limit', 1.0)  # max distance to consider RIGHT wall visible
 
-        self.base_distance = float(self.get_parameter('distance_limit').value)
+        self.follow_distance = float(self.get_parameter('follow_distance').value)
         self.v_lin = float(self.get_parameter('forward_speed').value)
         self.v_ang = float(self.get_parameter('turn_speed').value)
         self.time_to_stop = float(self.get_parameter('time_to_stop').value)
@@ -129,10 +129,15 @@ class WallFollower(Node):
                 BACK_RIGHT.append(d)
 
         # Minimal distances
-        min_front      = min(FRONT)      if FRONT      else float('inf')
-        min_fr_right   = min(FR_RIGHT)   if FR_RIGHT   else float('inf')
-        min_right      = min(RIGHT)      if RIGHT      else float('inf')
-        min_back_right = min(BACK_RIGHT) if BACK_RIGHT else float('inf')
+        # Mean of the three nearest rays: less sensitive to one noisy sample.
+        def robust_min(values):
+            nearest = sorted(values)[:3]
+            return sum(nearest) / len(nearest) if nearest else float('inf')
+
+        min_front = robust_min(FRONT)
+        min_fr_right = robust_min(FR_RIGHT)
+        min_right = robust_min(RIGHT)
+        min_back_right = robust_min(BACK_RIGHT)
 
         twist = Twist()
         action = ""
@@ -140,19 +145,19 @@ class WallFollower(Node):
         #----------------------------------------------------------
         # RULE 1: FRONT obstacle → turn left
         #----------------------------------------------------------
-        if min_front < self.base_distance:
+        if min_front < self.follow_distance:
             twist.linear.x = 0.0
             twist.linear.y = 0.0
-            twist.angular.z = self.v_ang * 2.0
+            twist.angular.z = self.v_ang
             action = f"FRONT {min_front:.2f} m → turn LEFT"
 
         #----------------------------------------------------------
         # RULE 2: FRONT-RIGHT obstacle → turn left
         #----------------------------------------------------------
-        elif min_fr_right < self.base_distance:
+        elif min_fr_right < self.follow_distance:
             twist.linear.x = 0.0
             twist.linear.y = 0.0
-            twist.angular.z = self.v_ang * 2.0
+            twist.angular.z = self.v_ang
             action = f"FRONT-RIGHT {min_fr_right:.2f} m → turn LEFT"
 
         #----------------------------------------------------------
@@ -160,7 +165,7 @@ class WallFollower(Node):
         #----------------------------------------------------------
         elif min_right < self.right_detection_limit:
             # error > 0 → too far; error < 0 → too close
-            error = min_right - self.base_distance
+            error = min_right - self.follow_distance
 
             if abs(error) <= self.tol:
                 # Inside band: go straight
@@ -169,7 +174,7 @@ class WallFollower(Node):
                 twist.angular.z = 0.0
                 action = (
                     f"RIGHT ~OK ({min_right:.2f} m, target "
-                    f"{self.base_distance:.2f}±{self.tol:.2f}) → STRAIGHT"
+                    f"{self.follow_distance:.2f}±{self.tol:.2f}) → STRAIGHT"
                 )
 
             elif error < 0:
@@ -179,7 +184,7 @@ class WallFollower(Node):
                 twist.angular.z = self.v_ang * 1.0
                 action = (
                     f"RIGHT too CLOSE ({min_right:.2f} m < "
-                    f"{self.base_distance:.2f}-{self.tol:.2f}) → "
+                    f"{self.follow_distance:.2f}-{self.tol:.2f}) → "
                     f"forward + strong LEFT turn"
                 )
 
@@ -190,7 +195,7 @@ class WallFollower(Node):
                 twist.angular.z = -self.v_ang * 1.0
                 action = (
                     f"RIGHT too FAR ({min_right:.2f} m > "
-                    f"{self.base_distance:.2f}+{self.tol:.2f}) → "
+                    f"{self.follow_distance:.2f}+{self.tol:.2f}) → "
                     f"forward + strong RIGHT turn"
                 )
 

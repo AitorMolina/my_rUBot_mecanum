@@ -12,16 +12,18 @@ class RubotWallFollower(Node):
         super().__init__('rubot_wall_follower_node')
 
         # Parameters
-        self.declare_parameter('distance_limit', 0.5)
-        self.declare_parameter('forward_speed', 0.20)
-        self.declare_parameter('turn_speed', 0.40)
-        self.declare_parameter('time_to_stop', 30.0)
+        self.declare_parameter('follow_distance', 0.35)
+        self.declare_parameter('forward_speed', 0.18)
+        self.declare_parameter('turn_speed', 0.30)
+        self.declare_parameter('time_to_stop', 80.0)
         self.declare_parameter('tolerance', 0.05)
         self.declare_parameter('right_detection_limit', 1.0)
         self.declare_parameter('lateral_gain', 0.5)
         self.declare_parameter('alignment_gain', 0.5)
+        self.declare_parameter('max_lateral_speed', 0.18)
+        self.declare_parameter('max_angular_speed', 0.60)
 
-        self.base_distance = float(self.get_parameter('distance_limit').value)
+        self.follow_distance = float(self.get_parameter('follow_distance').value)
         self.v_lin = float(self.get_parameter('forward_speed').value)
         self.v_ang = float(self.get_parameter('turn_speed').value)
         self.time_to_stop = float(self.get_parameter('time_to_stop').value)
@@ -31,6 +33,12 @@ class RubotWallFollower(Node):
         )
         self.k_lateral = float(self.get_parameter('lateral_gain').value)
         self.k_alignment = float(self.get_parameter('alignment_gain').value)
+        self.max_lateral_speed = float(
+            self.get_parameter('max_lateral_speed').value
+        )
+        self.max_angular_speed = float(
+            self.get_parameter('max_angular_speed').value
+        )
 
         self.cmd = Twist()
         self._state_action = 'Idle'
@@ -101,39 +109,53 @@ class RubotWallFollower(Node):
             elif -160 <= angle < -110:
                 back_right.append(distance)
 
-        min_front = min(front) if front else float('inf')
-        min_front_right = min(front_right) if front_right else float('inf')
-        min_right = min(right) if right else float('inf')
-        min_back_right = min(back_right) if back_right else float('inf')
+        # Mean of the three nearest rays: less sensitive to one noisy sample.
+        def robust_min(values):
+            nearest = sorted(values)[:3]
+            return sum(nearest) / len(nearest) if nearest else float('inf')
+
+        min_front = robust_min(front)
+        min_front_right = robust_min(front_right)
+        min_right = robust_min(right)
+        min_back_right = robust_min(back_right)
 
         twist = Twist()
         action = ''
 
         # RULE 1: FRONT obstacle -> turn left
-        if min_front < self.base_distance:
-            twist.angular.z = self.v_ang * 2.0
+        if min_front < self.follow_distance:
+            twist.angular.z = self.v_ang
             action = f'FRONT {min_front:.2f} m -> turn LEFT'
 
         # RULE 2: FRONT-RIGHT obstacle -> turn left
-        elif min_front_right < self.base_distance:
-            twist.angular.z = self.v_ang * 2.0
+        elif min_front_right < self.follow_distance:
+            twist.angular.z = self.v_ang
             action = f'FRONT-RIGHT {min_front_right:.2f} m -> turn LEFT'
 
         # RULE 3: follow the RIGHT wall with lateral and angular correction
         elif min_right < self.right_detection_limit:
-            distance_error = min_right - self.base_distance
+            distance_error = min_right - self.follow_distance
 
             if abs(distance_error) <= self.tol:
                 distance_error = 0.0
 
             # Positive y moves left: away from a close right wall.
             twist.linear.x = self.v_lin
-            twist.linear.y = -self.k_lateral * distance_error
+            twist.linear.y = max(
+                -self.max_lateral_speed,
+                min(self.max_lateral_speed, -self.k_lateral * distance_error),
+            )
 
             # If the front is closer than the back, turn left, and vice versa.
             if math.isfinite(min_front_right) and math.isfinite(min_back_right):
                 alignment_error = min_front_right - min_back_right
-                twist.angular.z = -self.k_alignment * alignment_error
+                twist.angular.z = max(
+                    -self.max_angular_speed,
+                    min(
+                        self.max_angular_speed,
+                        -self.k_alignment * alignment_error,
+                    ),
+                )
 
             action = (
                 f'RIGHT {min_right:.2f} m -> '
@@ -148,7 +170,7 @@ class RubotWallFollower(Node):
             and min_back_right < min_right
         ):
             twist.linear.x = self.v_lin * 0.1
-            twist.angular.z = -2.0 * self.v_ang
+            twist.angular.z = max(-self.max_angular_speed, -2.0 * self.v_ang)
             action = f'BACK-RIGHT {min_back_right:.2f} m -> strong RIGHT turn'
 
         self.cmd = twist
