@@ -1,8 +1,8 @@
 import math
-import time
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 
@@ -13,8 +13,8 @@ class WallFollower(Node):
 
         # Parameters
         self.declare_parameter('follow_distance', 0.35)  # desired distance to right wall
-        self.declare_parameter('forward_speed', 0.18)    # linear speed
-        self.declare_parameter('turn_speed', 0.30)       # angular speed
+        self.declare_parameter('forward_speed', 0.36)    # linear speed
+        self.declare_parameter('turn_speed', 0.60)       # angular speed
         self.declare_parameter('time_to_stop', 80.0)     # auto-stop
         self.declare_parameter('tolerance', 0.05)        # band around follow_distance
         self.declare_parameter('right_detection_limit', 1.0)  # max distance to consider RIGHT wall visible
@@ -66,7 +66,7 @@ class WallFollower(Node):
 
     #--------------------------------------------------------------------
     def stop(self):
-        """Stop timers and publish zero repeatedly before destroying the node."""
+        """Stop timers and publish one zero command before destroying the node."""
         self._shutting_down = True
 
         # Set last command to zero
@@ -79,13 +79,11 @@ class WallFollower(Node):
             except Exception:
                 pass
 
-        # Several messages make the stop robust before DDS/node teardown.
-        for _ in range(3):
-            try:
-                self.publisher.publish(self.cmd)
-                time.sleep(0.05)
-            except Exception:
-                break
+        # The ROS context is still active because main() handles Ctrl+C.
+        try:
+            self.publisher.publish(self.cmd)
+        except Exception:
+            pass
 
     #--------------------------------------------------------------------
     def cmd_publish_timer_cb(self):
@@ -217,7 +215,14 @@ class WallFollower(Node):
                 f"very slow + STRONG RIGHT turn (2*w)"
             )
 
-        # if nothing is visible, twist remains zero -> robot stops
+        #----------------------------------------------------------
+        # RULE 5: No wall visible -> search gently to the right
+        #----------------------------------------------------------
+        else:
+            twist.linear.x = self.v_lin
+            twist.linear.y = 0.0
+            twist.angular.z = -0.5 * self.v_ang
+            action = "No wall detected -> forward + gentle RIGHT search"
 
         # Update last commanded twist (periodic timer will publish it)
         self.cmd = twist
@@ -235,7 +240,12 @@ class WallFollower(Node):
             self.get_logger().info(self._state_action)
 
 def main(args=None):
-    rclpy.init(args=args)
+    # Let Python raise KeyboardInterrupt before rclpy closes its context.
+    # This keeps the publisher valid while stop() sends the zero command.
+    rclpy.init(
+        args=args,
+        signal_handler_options=SignalHandlerOptions.NO,
+    )
     node = WallFollower()
     try:
         rclpy.spin(node)
