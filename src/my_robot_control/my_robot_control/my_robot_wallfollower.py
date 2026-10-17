@@ -1,4 +1,5 @@
 import math
+import time
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -65,18 +66,11 @@ class WallFollower(Node):
 
     #--------------------------------------------------------------------
     def stop(self):
-        """Safe stop: set cmd to zero Twist, try to publish once, stop timers."""
+        """Stop timers and publish zero repeatedly before destroying the node."""
         self._shutting_down = True
 
         # Set last command to zero
         self.cmd = Twist()
-
-        # Try a final publish (publisher may still be valid even if shutdown started)
-        try:
-            self.publisher.publish(self.cmd)
-        except Exception:
-            # Context/publisher may already be invalid -> ignore
-            pass
 
         # Cancel timers safely
         for t in [self.info_timer, self.stop_timer, self.cmd_timer]:
@@ -84,6 +78,14 @@ class WallFollower(Node):
                 t.cancel()
             except Exception:
                 pass
+
+        # Several messages make the stop robust before DDS/node teardown.
+        for _ in range(3):
+            try:
+                self.publisher.publish(self.cmd)
+                time.sleep(0.05)
+            except Exception:
+                break
 
     #--------------------------------------------------------------------
     def cmd_publish_timer_cb(self):
@@ -148,7 +150,7 @@ class WallFollower(Node):
         if min_front < self.follow_distance:
             twist.linear.x = 0.0
             twist.linear.y = 0.0
-            twist.angular.z = self.v_ang
+            twist.angular.z = 2.0 * self.v_ang
             action = f"FRONT {min_front:.2f} m → turn LEFT"
 
         #----------------------------------------------------------
@@ -157,7 +159,7 @@ class WallFollower(Node):
         elif min_fr_right < self.follow_distance:
             twist.linear.x = 0.0
             twist.linear.y = 0.0
-            twist.angular.z = self.v_ang
+            twist.angular.z = 2.0 * self.v_ang
             action = f"FRONT-RIGHT {min_fr_right:.2f} m → turn LEFT"
 
         #----------------------------------------------------------
@@ -238,8 +240,9 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.stop()
+        pass
     finally:
+        node.stop()
         try:
             node.destroy_node()
         except Exception:

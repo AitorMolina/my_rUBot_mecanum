@@ -1,4 +1,5 @@
 import math
+import time
 
 import rclpy
 from geometry_msgs.msg import Twist
@@ -71,10 +72,19 @@ class RubotWallFollower(Node):
     def stop(self):
         self._shutting_down = True
         self.cmd = Twist()
-        self.publisher.publish(self.cmd)
 
         for timer in [self.info_timer, self.stop_timer, self.cmd_timer]:
-            timer.cancel()
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+
+        for _ in range(3):
+            try:
+                self.publisher.publish(self.cmd)
+                time.sleep(0.05)
+            except Exception:
+                break
 
     def cmd_publish_timer_cb(self):
         if not self._shutting_down:
@@ -124,12 +134,16 @@ class RubotWallFollower(Node):
 
         # RULE 1: FRONT obstacle -> turn left
         if min_front < self.follow_distance:
-            twist.angular.z = self.v_ang
+            twist.angular.z = min(
+                self.max_angular_speed, 2.0 * self.v_ang
+            )
             action = f'FRONT {min_front:.2f} m -> turn LEFT'
 
         # RULE 2: FRONT-RIGHT obstacle -> turn left
         elif min_front_right < self.follow_distance:
-            twist.angular.z = self.v_ang
+            twist.angular.z = min(
+                self.max_angular_speed, 2.0 * self.v_ang
+            )
             action = f'FRONT-RIGHT {min_front_right:.2f} m -> turn LEFT'
 
         # RULE 3: follow the RIGHT wall with lateral and angular correction
@@ -193,8 +207,9 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.stop()
+        pass
     finally:
+        node.stop()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
