@@ -3,8 +3,8 @@
     <!-- Navigation Program   -->
     <arg name="distance_limit" default="0.4"/>
     <arg name="speed_factor" default="1.0"/>
-    <arg name="forward_speed" default="0.4"/>
-    <arg name="rotation_speed" default="0.6"/>
+    <arg name="forward_speed" default="0.3"/>
+    <arg name="rotation_speed" default="0.5"/>
 
     <node
         pkg="my_robot_control" exec="my_robot_selfcontrol_exec" name="robot_selfcontrol_node" output="screen">

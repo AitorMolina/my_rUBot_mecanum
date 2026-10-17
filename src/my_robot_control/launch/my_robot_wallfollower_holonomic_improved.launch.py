@@ -24,18 +24,18 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('follow_distance', default_value='0.35'),
         DeclareLaunchArgument('max_front_length', default_value='0.50'),
-        DeclareLaunchArgument('forward_speed', default_value='0.40'),
-        DeclareLaunchArgument('lateral_speed', default_value='0.36'),
+        DeclareLaunchArgument('forward_speed', default_value='0.30'),
+        DeclareLaunchArgument('lateral_speed', default_value='0.40'),
         DeclareLaunchArgument('distance_gain', default_value='0.80'),
         DeclareLaunchArgument('angle_gain', default_value='1.20'),
-        DeclareLaunchArgument('max_angular_speed', default_value='0.60'),
+        DeclareLaunchArgument('max_angular_speed', default_value='1.00'),
         DeclareLaunchArgument('detection_limit', default_value='1.20'),
         DeclareLaunchArgument(
             'back_right_limit_factor', default_value='1.50'
         ),
         Node(
             package='my_robot_control',
-            executable='my_rubot_wallfollower_holonomic_improved_exec',
+            executable='my_robot_wallfollower_holonomic_improved_exec',
             name='improved_holonomic_wall_follower',
             output='screen',
             parameters=[parameters],

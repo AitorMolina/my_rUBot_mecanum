@@ -7,20 +7,21 @@ from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import LaserScan
 
 
-class RubotWallFollower(Node):
+class RobotWallFollower(Node):
     def __init__(self):
-        super().__init__('rubot_wall_follower_node')
+        super().__init__('robot_wall_follower_holonomic_node')
 
         # Parameters
         self.declare_parameter('follow_distance', 0.35)
-        self.declare_parameter('forward_speed', 0.40)
-        self.declare_parameter('turn_speed', 0.60)
+        self.declare_parameter('forward_speed', 0.30)
+        self.declare_parameter('turn_speed', 0.50)
         self.declare_parameter('tolerance', 0.05)
         self.declare_parameter('right_detection_limit', 1.0)
         self.declare_parameter('lateral_gain', 0.5)
         self.declare_parameter('alignment_gain', 0.5)
-        self.declare_parameter('max_lateral_speed', 0.36)
-        self.declare_parameter('max_angular_speed', 0.60)
+        self.declare_parameter('max_lateral_speed', 0.40)
+        self.declare_parameter('max_angular_speed', 1.00)
+        self.declare_parameter('back_right_limit_factor', 1.50)
 
         self.follow_distance = float(self.get_parameter('follow_distance').value)
         self.v_lin = float(self.get_parameter('forward_speed').value)
@@ -36,6 +37,9 @@ class RubotWallFollower(Node):
         )
         self.max_angular_speed = float(
             self.get_parameter('max_angular_speed').value
+        )
+        self.back_right_limit_factor = float(
+            self.get_parameter('back_right_limit_factor').value
         )
 
         self.cmd = Twist()
@@ -167,9 +171,23 @@ class RubotWallFollower(Node):
             and math.isfinite(min_back_right)
             and min_back_right < min_right
         ):
+            back_right_limit = (
+                self.back_right_limit_factor * self.follow_distance
+            )
+            distance_excess = max(
+                0.0, min_back_right - back_right_limit
+            )
             twist.linear.x = self.v_lin * 0.1
+            twist.linear.y = max(
+                -self.max_lateral_speed,
+                -self.k_lateral * distance_excess,
+            )
             twist.angular.z = max(-self.max_angular_speed, -2.0 * self.v_ang)
-            action = f'BACK-RIGHT {min_back_right:.2f} m -> strong RIGHT turn'
+            action = (
+                f'BACK-RIGHT {min_back_right:.2f} m -> '
+                f'vx={twist.linear.x:.2f}, vy={twist.linear.y:.2f}, '
+                f'strong RIGHT turn'
+            )
 
         self.cmd = twist
 
@@ -189,7 +207,7 @@ def main(args=None):
         args=args,
         signal_handler_options=SignalHandlerOptions.NO,
     )
-    node = RubotWallFollower()
+    node = RobotWallFollower()
 
     try:
         rclpy.spin(node)

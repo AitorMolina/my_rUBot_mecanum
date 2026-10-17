@@ -13,8 +13,8 @@ class WallFollower(Node):
 
         # Parameters
         self.declare_parameter('follow_distance', 0.35)  # desired distance to right wall
-        self.declare_parameter('forward_speed', 0.40)    # linear speed
-        self.declare_parameter('turn_speed', 0.60)       # angular speed
+        self.declare_parameter('forward_speed', 0.30)    # linear speed
+        self.declare_parameter('turn_speed', 0.50)       # angular speed
         self.declare_parameter('tolerance', 0.05)        # band around follow_distance
         self.declare_parameter('right_detection_limit', 1.0)  # max distance to consider RIGHT wall visible
 

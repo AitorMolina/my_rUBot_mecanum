@@ -30,10 +30,10 @@ class ImprovedHolonomicWallFollower(Node):
             self.declare_parameter('max_front_length', 0.50).value
         )
         self.forward_speed = float(
-            self.declare_parameter('forward_speed', 0.40).value
+            self.declare_parameter('forward_speed', 0.30).value
         )
         self.lateral_speed = float(
-            self.declare_parameter('lateral_speed', 0.36).value
+            self.declare_parameter('lateral_speed', 0.40).value
         )
         self.distance_gain = float(
             self.declare_parameter('distance_gain', 0.80).value
@@ -42,7 +42,7 @@ class ImprovedHolonomicWallFollower(Node):
             self.declare_parameter('angle_gain', 1.20).value
         )
         self.max_angular_speed = float(
-            self.declare_parameter('max_angular_speed', 0.60).value
+            self.declare_parameter('max_angular_speed', 1.00).value
         )
         self.detection_limit = float(
             self.declare_parameter('detection_limit', 1.20).value
