@@ -127,6 +127,21 @@ ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_
     ```
     > Change parameter values to verify different movements
 
+#### Move the simulated robot to a new pose
+
+You can reposition the robot in the Gazebo world without restarting the bringup. First stop the active control node with `Ctrl+C`. Then run:
+
+```bash
+ros2 run my_robot_control my_robot_set_pose_exec --ros-args \
+  -p world_name:=square4m_wall_ign \
+  -p robot_name:=rubot_mecanum \
+  -p x:=1.0 \
+  -p y:=-1.0 \
+  -p yaw:=0.0
+```
+
+The parameters `x` and `y` are expressed in metres and `yaw` in radians. Use the Gazebo world name without the `.world` extension. The robot height is left at the default value and does not need to be specified. This command is only for the simulated robot.
+
 **Real robot**
 
 The same simple control program created in virtual environment to move the robot is used for the real robot.
