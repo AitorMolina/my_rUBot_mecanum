@@ -123,7 +123,8 @@ class ImprovedHolonomicWallFollower(Node):
         # TODO 4: Implement the proportional commands:
         #   FOLLOW_RIGHT:     +vx, distance correction with vy, angle -> -90 deg
         #   FOLLOW_FRONT:     +vy, distance correction with vx, angle -> 0 deg
-        #   BYPASS_OBSTACLE:  slow +vx/+vy, then +vx, then +vx/-vy,
+        #   BYPASS_OBSTACLE:  slow +vx/+vy, then +vx with proportional
+        #                     distance correction in vy, then +vx/-vy,
         #                     with angular.z=0 so regions can progress
         #   Limit abs(vy) to lateral_speed in BYPASS_BACK_RIGHT.
         #   TURN_TO_RIGHT:    positive angular.z until right is closest
