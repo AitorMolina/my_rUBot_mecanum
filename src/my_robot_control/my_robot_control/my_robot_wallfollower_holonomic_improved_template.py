@@ -16,8 +16,12 @@ class ImprovedHolonomicWallFollower(Node):
 
     FOLLOW_RIGHT = 'FOLLOW_RIGHT'
     FOLLOW_FRONT = 'FOLLOW_FRONT'
-    SKIRT_OBSTACLE = 'SKIRT_OBSTACLE'
+    BYPASS_OBSTACLE = 'BYPASS_OBSTACLE'
     TURN_TO_RIGHT = 'TURN_TO_RIGHT'
+
+    BYPASS_FRONT_RIGHT = 'BYPASS_FRONT_RIGHT'
+    BYPASS_RIGHT = 'BYPASS_RIGHT'
+    BYPASS_BACK_RIGHT = 'BYPASS_BACK_RIGHT'
 
     def __init__(self):
         super().__init__('improved_holonomic_wall_follower')
@@ -52,6 +56,7 @@ class ImprovedHolonomicWallFollower(Node):
         )
 
         self.state = self.FOLLOW_RIGHT
+        self.bypass_phase = self.BYPASS_FRONT_RIGHT
         self.command = Twist()
         self.odom_pose = None
         self.front_start_pose = None
@@ -103,9 +108,11 @@ class ImprovedHolonomicWallFollower(Node):
 
         # TODO 3: Implement the state transitions:
         #   FOLLOW_RIGHT -> FOLLOW_FRONT when a frontal wall is close
-        #   FOLLOW_FRONT -> SKIRT_OBSTACLE when the front clears early
+        #   FOLLOW_FRONT -> BYPASS_OBSTACLE when the front clears early
         #   FOLLOW_FRONT -> TURN_TO_RIGHT for a long frontal wall
-        #   SKIRT_OBSTACLE -> FOLLOW_RIGHT after front-right/right/back-right
+        #   BYPASS_OBSTACLE follows the strict subphase sequence:
+        #     BYPASS_FRONT_RIGHT -> BYPASS_RIGHT -> BYPASS_BACK_RIGHT
+        #   BYPASS_OBSTACLE -> FOLLOW_RIGHT when right is recovered
         #   TURN_TO_RIGHT -> FOLLOW_RIGHT when the wall reaches the right region
 
         # TODO 3b: On entry to FOLLOW_FRONT, copy self.odom_pose to
@@ -116,7 +123,9 @@ class ImprovedHolonomicWallFollower(Node):
         # TODO 4: Implement the proportional commands:
         #   FOLLOW_RIGHT:     +vx, distance correction with vy, angle -> -90 deg
         #   FOLLOW_FRONT:     +vy, distance correction with vx, angle -> 0 deg
-        #   SKIRT_OBSTACLE:   +vx/+vy, then +vx, then +vx/-vy
+        #   BYPASS_OBSTACLE:  slow +vx/+vy, then +vx, then +vx/-vy,
+        #                     with angular.z=0 so regions can progress
+        #   Limit abs(vy) to lateral_speed in BYPASS_BACK_RIGHT.
         #   TURN_TO_RIGHT:    positive angular.z until right is closest
 
         # TODO 5: Clamp lateral and angular velocities. Use a zero Twist when
