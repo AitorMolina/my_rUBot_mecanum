@@ -217,7 +217,7 @@ The delivered node is useful, but it has some important improvements:
     ros2 topic info /scan --verbose
     ```
     > Gazebo is usually `RELIABLE`, but the real LiDAR is usually `BEST_EFFORT`.
-    > The current `my_robot_wallfollower.py` node already uses `qos_profile_sensor_data`, while the LiDAR test and self-control nodes still require this improvement.
+    > The current `my_robot_wallfollower_differential.py` node already uses `qos_profile_sensor_data`, while the LiDAR test and self-control nodes still require this improvement.
 
 - Minimize the computational cost of the LiDAR callback:
     - avoid arrays and find minimum directly
@@ -290,7 +290,7 @@ The objectives of this lab session are:
 
 ## **3. Wall Follower**
 
-The `my_robot_wallfollower.py` node divides the valid LiDAR readings into four angular regions and calculates the minimum distance in each region:
+The `my_robot_wallfollower_differential.py` node divides the valid LiDAR readings into four angular regions and calculates the minimum distance in each region:
 - `FRONT`: -20° to 20°.
 - `FRONT_RIGHT`: -70° to -20°.
 - `RIGHT`: -110° to -70°.
@@ -300,7 +300,7 @@ The controller evaluates these regions in priority order. A front or front-right
 
 Two wall-follower nodes are available:
 
-- **Differential version — `my_robot_wallfollower.py`:** uses forward velocity (`linear.x`) and rotation (`angular.z`). It turns left or right to maintain the desired distance from the right wall.
+- **Differential version — `my_robot_wallfollower_differential.py`:** uses forward velocity (`linear.x`) and rotation (`angular.z`). It turns left or right to maintain the desired distance from the right wall.
 - **Holonomic version — `my_robot_wallfollower_holonomic.py`:** also uses lateral velocity (`linear.y`). While following the right wall, it corrects the lateral distance and uses a proportional rotation to align the robot with the wall.
 
 The common default velocities are `forward_speed=0.3 m/s` and `turn_speed=0.5 rad/s`. The holonomic controller also uses `max_lateral_speed=0.4 m/s` and `max_angular_speed=1.0 rad/s`.
@@ -310,10 +310,10 @@ The algorithm is based on LiDAR range tests and specific actions for each region
 
 **VIRTUAL environment**
 
-We have to launch the "my_robot_wallfollower.launch.xml" file in the "my_robot_control" package.
+We have to launch the `my_robot_wallfollower_differential.launch.xml` file in the `my_robot_control` package.
 ```shell
 ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_ign.world robot_model:=rubot/rubot_mecanum.urdf.xacro x:=1.5 y:=-1.5 yaw:=0.5
-ros2 launch my_robot_control my_robot_wallfollower.launch.xml
+ros2 launch my_robot_control my_robot_wallfollower_differential.launch.xml
 ```
 ![](./Images/03_Control/wallfollower1.png)
 To test the holonomic version, keep the same simulation running and execute:
@@ -333,9 +333,9 @@ Follow the activity document to compare the differential and holonomic controlle
 
 **REAL robot**
 
-We have to launch the same `my_robot_wallfollower.launch.xml` file designed for the virtual environment.
+We have to launch the same `my_robot_wallfollower_differential.launch.xml` file designed for the virtual environment.
 ```shell
-ros2 launch my_robot_control my_robot_wallfollower.launch.xml
+ros2 launch my_robot_control my_robot_wallfollower_differential.launch.xml
 ```
 >The real and simulated LiDAR may use different scan resolutions. The algorithm must calculate regions from the angles supplied in each `LaserScan` message rather than from fixed array indices.
 
