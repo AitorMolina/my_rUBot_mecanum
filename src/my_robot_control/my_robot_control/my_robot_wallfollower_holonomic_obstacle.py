@@ -55,6 +55,7 @@ class HolonomicObstacleWallFollower(Node):
         )
 
         self.state = self.RIGHT
+        self.short_obstacle = True
         self.command = Twist()
         self.odom_pose = None
         self.front_start_pose = None
@@ -188,6 +189,7 @@ class HolonomicObstacleWallFollower(Node):
                 return
 
             self.front_start_pose = self.odom_pose
+            self.short_obstacle = True
             self.change_state(self.FRONT, 'frontal obstacle detected')
             cmd.linear.y = self.lateral_speed
             return
@@ -220,9 +222,21 @@ class HolonomicObstacleWallFollower(Node):
             self.report('FRONT: odometry unavailable; stopped')
             return
 
-        # A long obstacle remains in FRONT beyond the allowed lateral travel.
-        # Keep this same state while turning; finish when it reaches RIGHT.
         if progress >= self.max_front_length:
+            self.short_obstacle = False
+
+        if closest == self.FRONT_RIGHT:
+            obstacle_type = (
+                'short obstacle' if self.short_obstacle else 'long wall'
+            )
+            self.change_state(
+                self.FRONT_RIGHT,
+                f'{obstacle_type}; progress={progress:.2f} m',
+            )
+            self.follow_front_right(measurements, closest, cmd)
+            return
+
+        if not self.short_obstacle:
             if closest == self.RIGHT:
                 self.change_state(self.RIGHT, 'long front wall reached RIGHT')
                 self.follow_right(measurements, closest, cmd)
@@ -231,14 +245,6 @@ class HolonomicObstacleWallFollower(Node):
                 self.report(
                     f'FRONT: long obstacle, turning; progress={progress:.2f} m'
                 )
-            return
-
-        if closest == self.FRONT_RIGHT:
-            self.change_state(
-                self.FRONT_RIGHT,
-                f'short obstacle; progress={progress:.2f} m',
-            )
-            self.follow_front_right(measurements, closest, cmd)
             return
 
         # Graceful handling if a low-rate scan skips FRONT_RIGHT.
@@ -257,6 +263,14 @@ class HolonomicObstacleWallFollower(Node):
             self.change_state(self.RIGHT, 'obstacle moved to RIGHT')
             self.follow_right(measurements, closest, cmd)
             return
+
+        if not self.short_obstacle:
+            cmd.angular.z = self.turn_speed
+            self.report(
+                f'FRONT_RIGHT: long wall, turning; closest={closest}'
+            )
+            return
+
         if closest == self.BACK_RIGHT:
             self.change_state(
                 self.BACK_RIGHT,
