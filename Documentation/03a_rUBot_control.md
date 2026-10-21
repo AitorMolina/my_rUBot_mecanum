@@ -350,7 +350,7 @@ The algorithm is based on LiDAR range tests and specific actions for each region
 We have to launch the `my_robot_wallfollower_differential.launch.xml` file in the `my_robot_control` package.
 
 ```shell
-ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_ign.world robot_model:=rubot/rubot_mecanum.urdf.xacro x:=1.5 y:=-1.5 yaw:=0.5
+ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_ign.world robot_model:=rubot/rubot_mecanum.urdf.xacro x:=1.5 y:=-1.5 yaw:=1.57
 ```
 
 To test the **Differential** version, keep the same simulation running and execute:
@@ -362,7 +362,7 @@ ros2 launch my_robot_control my_robot_wallfollower_differential.launch.xml
 Stop the controller with `Ctrl+C` and restore the initial simulated pose before testing another controller:
 
 ```shell
-ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=1.57
 ```
 
 ![](./Images/03_Control/wallfollower1.png)
@@ -376,7 +376,7 @@ ros2 launch my_robot_control my_robot_wallfollower_holonomic.launch.py
 Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
 
 ```shell
-ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=1.57
 ```
 **Activity: rUBot wall-follower**
 
