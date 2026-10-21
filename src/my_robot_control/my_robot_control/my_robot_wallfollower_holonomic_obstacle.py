@@ -60,7 +60,7 @@ class HolonomicObstacleWallFollower(Node):
 
         # Gain used to keep the robot parallel to the right wall.
         self.alignment_gain = float(
-            self.declare_parameter('alignment_gain', 0.5).value
+            self.declare_parameter('alignment_gain', 2.0).value
         )
 
         # Names of the four states and LiDAR regions.
@@ -79,6 +79,7 @@ class HolonomicObstacleWallFollower(Node):
         self.command = Twist()
         self.odom_pose = None
         self.front_start_pose = None
+        self.right_angle = None
 
         self.region_candidate = None
         self.region_candidate_count = 0
@@ -114,7 +115,7 @@ class HolonomicObstacleWallFollower(Node):
         self.odom_pose = (position.x, position.y, yaw)
 
     def region_measurements(self, scan):
-        """Return a robust distance for each region.
+        """Return a robust distance and angle for each region.
 
         Angles are normalised so scans expressed as either [-pi, pi] or
         [0, 2*pi] work in the same way. The mean of the nearest three valid
@@ -138,23 +139,34 @@ class HolonomicObstacleWallFollower(Node):
             angle_deg = math.degrees(angle)
 
             if -20.0 <= angle_deg <= 20.0:
-                regions[self.FRONT].append(distance)
+                regions[self.FRONT].append((distance, angle_deg))
             elif -70.0 <= angle_deg < -20.0:
-                regions[self.FRONT_RIGHT].append(distance)
+                regions[self.FRONT_RIGHT].append((distance, angle_deg))
             elif -110.0 <= angle_deg < -70.0:
-                regions[self.RIGHT].append(distance)
+                regions[self.RIGHT].append((distance, angle_deg))
             elif -160.0 <= angle_deg < -110.0:
-                regions[self.BACK_RIGHT].append(distance)
+                regions[self.BACK_RIGHT].append((distance, angle_deg))
 
-        # For each region, average its nearest valid LiDAR rays. This reduces
-        # the effect of one isolated noisy measurement.
+        # For each region, average the distance and angle of its nearest valid
+        # LiDAR rays. This reduces the effect of one noisy measurement.
         measurements = {}
-        for name, values in regions.items():
-            nearest = sorted(values)[:self.robust_rays]
-            measurements[name] = (
-                sum(nearest) / len(nearest) if nearest else math.inf
-            )
-        return measurements
+        angles = {}
+        for name, rays in regions.items():
+            nearest = sorted(rays, key=lambda ray: ray[0])[
+                :self.robust_rays
+            ]
+            if nearest:
+                measurements[name] = sum(
+                    ray[0] for ray in nearest
+                ) / len(nearest)
+                angles[name] = sum(
+                    ray[1] for ray in nearest
+                ) / len(nearest)
+            else:
+                measurements[name] = math.inf
+                angles[name] = None
+
+        return measurements, angles
 
     def closest_region(self, measurements):
         visible = {
@@ -227,19 +239,18 @@ class HolonomicObstacleWallFollower(Node):
                 self.lateral_speed,
             )
 
-            # Compare the wall ahead and behind the robot to keep it parallel.
-            front_right = measurements[self.FRONT_RIGHT]
-            back_right = measurements[self.BACK_RIGHT]
-            if math.isfinite(front_right) and math.isfinite(back_right):
-                alignment_error = front_right - back_right
+            # The closest point on a parallel right wall should be at -90 deg.
+            if self.right_angle is not None:
+                alignment_error = math.radians(self.right_angle + 90.0)
                 cmd.angular.z = clamp(
-                    -self.alignment_gain * alignment_error,
+                    self.alignment_gain * alignment_error,
                     -self.turn_speed,
                     self.turn_speed,
                 )
 
             self.report(
                 f'RIGHT: distance={right_distance:.2f} m, '
+                f'angle={self.right_angle:.1f} deg, '
                 f'vy={cmd.linear.y:.2f} m/s, '
                 f'w={cmd.angular.z:.2f} rad/s'
             )
@@ -326,7 +337,8 @@ class HolonomicObstacleWallFollower(Node):
         self.report(f'BACK_RIGHT: diagonal +vx/-vy, closest={closest}')
 
     def scan_callback(self, scan):
-        measurements = self.region_measurements(scan)
+        measurements, angles = self.region_measurements(scan)
+        self.right_angle = angles[self.RIGHT]
         closest = self.confirmed_region(measurements)
         cmd = Twist()
 

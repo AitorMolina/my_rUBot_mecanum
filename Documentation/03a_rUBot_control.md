@@ -351,12 +351,13 @@ We have to launch the `my_robot_wallfollower_differential.launch.xml` file in th
 
 ```shell
 ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_ign.world robot_model:=rubot/rubot_mecanum.urdf.xacro x:=1.5 y:=-1.5 yaw:=0.5
-````
+```
 
 To test the **Differential** version, keep the same simulation running and execute:
-````shell
+
+```shell
 ros2 launch my_robot_control my_robot_wallfollower_differential.launch.xml
-`````
+```
 
 Stop the controller with `Ctrl+C` and restore the initial simulated pose before testing another controller:
 
@@ -380,6 +381,7 @@ ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name
 **Activity: rUBot wall-follower**
 
 The objectives of this activity are:
+
 - Compare the differential and holonomic controllers.
 - Implement the **holonomic_obstacle** wall follower according to the described requirements.
 - Test the **holonomic obstacle** wall follower version
@@ -395,16 +397,19 @@ ros2 launch my_robot_control my_robot_wallfollower_holonomic_obstacle.launch.py 
   turn_speed:=0.60 \
   detection_limit:=1.20 \
   lateral_gain:=0.5 \
-  alignment_gain:=0.5
+  alignment_gain:=2.0
 ```
->All its
-parameters and their default values are shown explicitly so that you can
-modify them during the test
+
+> All the parameters and their default values are shown explicitly so that
+> you can modify them during the test.
 
 During the test, check the state messages printed in the terminal. For a short
 obstacle, the expected regions are `RIGHT`, `FRONT`, `FRONT_RIGHT`, `RIGHT`,
 `BACK_RIGHT` and `RIGHT`. In the `RIGHT` state, verify that the robot corrects
-both its lateral distance and its angle to remain parallel to the wall.
+both its lateral distance and its angle to remain parallel to the wall. The
+status message shows the measured `distance`, the angle of the closest right
+rays, `vy` and `w`. When the robot is parallel, the measured angle should be
+close to `-90 deg` and `w` should approach zero.
 
 Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
 
@@ -426,7 +431,10 @@ The parameters have the following meaning:
 - `lateral_gain`: proportional gain used to correct the distance to the
   right wall while the controller is in the `RIGHT` state.
 - `alignment_gain`: proportional gain used to keep the robot parallel to
-  the wall by comparing the `FRONT_RIGHT` and `BACK_RIGHT` distances.
+  the wall. The controller averages the angles of the three closest valid
+  `RIGHT` rays and moves the resulting angle towards `-90 deg`. Its default
+  value is `2.0`, so an angular error of `10 deg` produces approximately
+  `0.35 rad/s`, limited by `turn_speed`.
 
 This node subscribes to `/scan` and `/odom` and publishes velocity commands
 to `/cmd_vel`. Its normal short-obstacle sequence is `RIGHT`, `FRONT`,
