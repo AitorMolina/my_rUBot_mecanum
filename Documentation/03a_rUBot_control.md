@@ -137,18 +137,11 @@ ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_
   > Change parameter values to verify different movements
   >
 
-#### Move the simulated robot to a new pose
+  Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
 
-You can reposition the robot in the Gazebo world without restarting the bringup. First stop the active control node with `Ctrl+C`. Then run:
-
-```bash
-ros2 run my_robot_control my_robot_set_pose_exec --ros-args \
-  -p world_name:=square4m_wall_ign \
-  -p robot_name:=rubot_mecanum \
-  -p x:=1.0 \
-  -p y:=-1.0 \
-  -p yaw:=0.0
-```
+  ```shell
+  ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
+  ```
 
 The parameters `x` and `y` are expressed in metres and `yaw` in radians. Use the Gazebo world name without the `.world` extension. The robot height is left at the default value and does not need to be specified. This command is only for the simulated robot.
 
@@ -190,6 +183,12 @@ The number of samples and `angle_increment` can differ between the simulated and
 
   ```shell
   ros2 launch my_robot_control my_robot_lidar_test.launch.xml
+  ```
+
+  Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
+
+  ```shell
+  ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=0.5 -p y:=0.0 -p yaw:=0.0
   ```
 
   > you can modify the parameter values in the node
@@ -283,6 +282,12 @@ ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_
 ros2 launch my_robot_control my_robot_selfcontrol.launch.xml
 ```
 
+Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
+
+```shell
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
+```
+
 ![](./Images/03_Control/selfcontrol.png)
 
 > - Verify in rviz if you have to change the fixed frame to "odom" frame
@@ -346,19 +351,40 @@ We have to launch the `my_robot_wallfollower_differential.launch.xml` file in th
 
 ```shell
 ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_ign.world robot_model:=rubot/rubot_mecanum.urdf.xacro x:=1.5 y:=-1.5 yaw:=0.5
+````
+
+To test the **Differential** version, keep the same simulation running and execute:
+````shell
 ros2 launch my_robot_control my_robot_wallfollower_differential.launch.xml
+`````
+
+Stop the controller with `Ctrl+C` and restore the initial simulated pose before testing another controller:
+
+```shell
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
 ```
 
 ![](./Images/03_Control/wallfollower1.png)
-To test the holonomic version, keep the same simulation running and execute:
+
+To test the **holonomic** simple version, keep the same simulation running and execute:
 
 ```shell
 ros2 launch my_robot_control my_robot_wallfollower_holonomic.launch.py
 ```
 
-To test the holonomic obstacle wall follower, execute its launch file with
-the default parameters shown explicitly below. Students can change these
-values from the command line when testing the controller on the real robot:
+Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
+
+```shell
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
+```
+**Activity: rUBot wall-follower**
+
+The objectives of this activity are:
+- Compare the differential and holonomic controllers.
+- Implement the **holonomic_obstacle** wall follower according to the described requirements.
+- Test the **holonomic obstacle** wall follower version
+
+To test your designed activity node, keep the same simulation running and execute:
 
 ```shell
 ros2 launch my_robot_control my_robot_wallfollower_holonomic_obstacle.launch.py \
@@ -367,7 +393,23 @@ ros2 launch my_robot_control my_robot_wallfollower_holonomic_obstacle.launch.py 
   forward_speed:=0.25 \
   lateral_speed:=0.30 \
   turn_speed:=0.60 \
-  detection_limit:=1.20
+  detection_limit:=1.20 \
+  lateral_gain:=0.5 \
+  alignment_gain:=0.5
+```
+>All its
+parameters and their default values are shown explicitly so that you can
+modify them during the test
+
+During the test, check the state messages printed in the terminal. For a short
+obstacle, the expected regions are `RIGHT`, `FRONT`, `FRONT_RIGHT`, `RIGHT`,
+`BACK_RIGHT` and `RIGHT`. In the `RIGHT` state, verify that the robot corrects
+both its lateral distance and its angle to remain parallel to the wall.
+
+Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
+
+```shell
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.5 -p y:=-1.5 -p yaw:=0.5
 ```
 
 The parameters have the following meaning:
@@ -381,6 +423,10 @@ The parameters have the following meaning:
   in radians per second.
 - `detection_limit`: maximum LiDAR distance considered when selecting the
   closest region, in metres.
+- `lateral_gain`: proportional gain used to correct the distance to the
+  right wall while the controller is in the `RIGHT` state.
+- `alignment_gain`: proportional gain used to keep the robot parallel to
+  the wall by comparing the `FRONT_RIGHT` and `BACK_RIGHT` distances.
 
 This node subscribes to `/scan` and `/odom` and publishes velocity commands
 to `/cmd_vel`. Its normal short-obstacle sequence is `RIGHT`, `FRONT`,
@@ -389,22 +435,13 @@ lateral travel in `FRONT` reaches `max_front_length`, the object is treated
 as a long wall and the robot keeps turning through `FRONT_RIGHT` until the
 minimum LiDAR distance reaches `RIGHT`.
 
-> - You can test the behaviour by tuning the defined parameters
->   ![](./Images/03_Control/wallfollower2.png)
+- You can test the behaviour by tuning the defined parameters
+   ![](./Images/03_Control/wallfollower2.png)
 
-**Activity: rUBot wall-follower**
-
-Complete **A4_ROS2_WallFollower**, available at course documentation.
-
-Follow the activity document to compare the differential and holonomic controllers, implement the improved holonomic wall follower, test the three nodes and prepare the required delivery.
 
 **REAL robot**
 
-We have to launch the same `my_robot_wallfollower_differential.launch.xml` file designed for the virtual environment.
-
-```shell
-ros2 launch my_robot_control my_robot_wallfollower_differential.launch.xml
-```
+We have to launch the same node files designed for the virtual environment.
 
 > The real and simulated LiDAR may use different scan resolutions. The algorithm must calculate regions from the angles supplied in each `LaserScan` message rather than from fixed array indices.
 
@@ -428,6 +465,12 @@ First launch the simulation and then launch the controller with the desired targ
 ```shell
 ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py world:=square4m_wall_ign.world robot_model:=rubot/rubot_mecanum.urdf.xacro x:=1.0 y:=1.0 yaw:=1.8
 ros2 launch my_robot_control my_robot_go2pose.launch.xml x:=1.0 y:=1.0 f:=90.0
+```
+
+Stop the controller with `Ctrl+C` and restore the initial simulated pose before repeating the test:
+
+```shell
+ros2 run my_robot_control my_robot_set_pose_gazebo_exec --ros-args -p world_name:=square4m_wall_ign -p robot_name:=rubot_mecanum -p x:=1.0 -p y:=1.0 -p yaw:=1.8
 ```
 
 The target coordinates are expressed relative to the `/odom` frame. In RViz, select `odom` as the fixed frame when checking the trajectory and target orientation.

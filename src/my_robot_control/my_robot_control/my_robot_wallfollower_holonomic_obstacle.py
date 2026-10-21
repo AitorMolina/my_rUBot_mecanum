@@ -10,6 +10,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import LaserScan
+from tf_transformations import euler_from_quaternion
 
 
 def clamp(value, low, high):
@@ -19,43 +20,62 @@ def clamp(value, low, high):
 class HolonomicObstacleWallFollower(Node):
     """Follow the sequence FRONT -> FRONT_RIGHT -> RIGHT -> BACK_RIGHT."""
 
-    RIGHT = 'RIGHT'
-    FRONT = 'FRONT'
-    FRONT_RIGHT = 'FRONT_RIGHT'
-    BACK_RIGHT = 'BACK_RIGHT'
-
-    # Fixed controller constants: they are deliberately not ROS parameters.
-    FRONT_TRIGGER_FACTOR = 1.5
-    DISTANCE_GAIN = 0.8
-    DIAGONAL_FACTOR = 0.5
-    REGION_CONFIRMATIONS = 3
-    ROBUST_RAYS = 3
-
     def __init__(self):
         super().__init__('holonomic_obstacle_wall_follower')
 
-        # Minimum set of parameters needed to tune the real robot.
+        # Desired distance between the robot and the right wall (m).
         self.follow_distance = float(
             self.declare_parameter('follow_distance', 0.35).value
         )
+
+        # Maximum lateral distance used to classify a short obstacle (m).
         self.max_front_length = float(
             self.declare_parameter('max_front_length', 0.50).value
         )
+
+        # Forward velocity of the robot (m/s).
         self.forward_speed = float(
             self.declare_parameter('forward_speed', 0.25).value
         )
+
+        # Maximum lateral velocity of the robot (m/s).
         self.lateral_speed = float(
             self.declare_parameter('lateral_speed', 0.30).value
         )
+
+        # Angular velocity used when turning (rad/s).
         self.turn_speed = float(
             self.declare_parameter('turn_speed', 0.60).value
         )
+
+        # Maximum LiDAR distance used to detect an obstacle (m).
         self.detection_limit = float(
             self.declare_parameter('detection_limit', 1.20).value
         )
 
+        # Gain used to correct the distance to the right wall.
+        self.lateral_gain = float(
+            self.declare_parameter('lateral_gain', 0.5).value
+        )
+
+        # Gain used to keep the robot parallel to the right wall.
+        self.alignment_gain = float(
+            self.declare_parameter('alignment_gain', 0.5).value
+        )
+
+        # Names of the four states and LiDAR regions.
+        self.RIGHT = 'RIGHT'
+        self.FRONT = 'FRONT'
+        self.FRONT_RIGHT = 'FRONT_RIGHT'
+        self.BACK_RIGHT = 'BACK_RIGHT'
+
+        # Simple fixed values used by the controller.
+        self.diagonal_factor = 0.5
+        self.region_confirmations = 3
+        self.robust_rays = 3
+
         self.state = self.RIGHT
-        self.short_obstacle = True
+        self.obstacle_is_long = False
         self.command = Twist()
         self.odom_pose = None
         self.front_start_pose = None
@@ -84,20 +104,16 @@ class HolonomicObstacleWallFollower(Node):
     def odom_callback(self, msg):
         position = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
-        yaw = math.atan2(
-            2.0 * (
-                orientation.w * orientation.z
-                + orientation.x * orientation.y
-            ),
-            1.0 - 2.0 * (
-                orientation.y * orientation.y
-                + orientation.z * orientation.z
-            ),
-        )
+        quaternion = [
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w,
+        ]
+        _, _, yaw = euler_from_quaternion(quaternion)
         self.odom_pose = (position.x, position.y, yaw)
 
-    @classmethod
-    def region_measurements(cls, scan):
+    def region_measurements(self, scan):
         """Return a robust distance for each region.
 
         Angles are normalised so scans expressed as either [-pi, pi] or
@@ -105,10 +121,10 @@ class HolonomicObstacleWallFollower(Node):
         rays prevents one noisy hardware return from controlling the state.
         """
         regions = {
-            cls.FRONT: [],
-            cls.FRONT_RIGHT: [],
-            cls.RIGHT: [],
-            cls.BACK_RIGHT: [],
+            self.FRONT: [],
+            self.FRONT_RIGHT: [],
+            self.RIGHT: [],
+            self.BACK_RIGHT: [],
         }
 
         for index, distance in enumerate(scan.ranges):
@@ -122,17 +138,19 @@ class HolonomicObstacleWallFollower(Node):
             angle_deg = math.degrees(angle)
 
             if -20.0 <= angle_deg <= 20.0:
-                regions[cls.FRONT].append(distance)
+                regions[self.FRONT].append(distance)
             elif -70.0 <= angle_deg < -20.0:
-                regions[cls.FRONT_RIGHT].append(distance)
+                regions[self.FRONT_RIGHT].append(distance)
             elif -110.0 <= angle_deg < -70.0:
-                regions[cls.RIGHT].append(distance)
+                regions[self.RIGHT].append(distance)
             elif -160.0 <= angle_deg < -110.0:
-                regions[cls.BACK_RIGHT].append(distance)
+                regions[self.BACK_RIGHT].append(distance)
 
+        # For each region, average its nearest valid LiDAR rays. This reduces
+        # the effect of one isolated noisy measurement.
         measurements = {}
         for name, values in regions.items():
-            nearest = sorted(values)[:cls.ROBUST_RAYS]
+            nearest = sorted(values)[:self.robust_rays]
             measurements[name] = (
                 sum(nearest) / len(nearest) if nearest else math.inf
             )
@@ -155,7 +173,7 @@ class HolonomicObstacleWallFollower(Node):
             self.region_candidate = candidate
             self.region_candidate_count = 1
 
-        if self.region_candidate_count >= self.REGION_CONFIRMATIONS:
+        if self.region_candidate_count >= self.region_confirmations:
             self.stable_region = candidate
         return self.stable_region
 
@@ -179,17 +197,15 @@ class HolonomicObstacleWallFollower(Node):
             self.get_logger().info(f'STATE {new_state}: {reason}')
 
     def follow_right(self, measurements, closest, cmd):
-        front_distance = measurements[self.FRONT]
         right_distance = measurements[self.RIGHT]
-        front_trigger = self.FRONT_TRIGGER_FACTOR * self.follow_distance
 
-        if closest == self.FRONT and front_distance < front_trigger:
+        if closest == self.FRONT:
             if self.odom_pose is None:
                 self.report('RIGHT: frontal obstacle; waiting for /odom')
                 return
 
             self.front_start_pose = self.odom_pose
-            self.short_obstacle = True
+            self.obstacle_is_long = False
             self.change_state(self.FRONT, 'frontal obstacle detected')
             cmd.linear.y = self.lateral_speed
             return
@@ -206,11 +222,27 @@ class HolonomicObstacleWallFollower(Node):
             distance_error = right_distance - self.follow_distance
             cmd.linear.x = self.forward_speed
             cmd.linear.y = clamp(
-                -self.DISTANCE_GAIN * distance_error,
+                -self.lateral_gain * distance_error,
                 -self.lateral_speed,
                 self.lateral_speed,
             )
-            self.report(f'RIGHT: distance={right_distance:.2f} m')
+
+            # Compare the wall ahead and behind the robot to keep it parallel.
+            front_right = measurements[self.FRONT_RIGHT]
+            back_right = measurements[self.BACK_RIGHT]
+            if math.isfinite(front_right) and math.isfinite(back_right):
+                alignment_error = front_right - back_right
+                cmd.angular.z = clamp(
+                    -self.alignment_gain * alignment_error,
+                    -self.turn_speed,
+                    self.turn_speed,
+                )
+
+            self.report(
+                f'RIGHT: distance={right_distance:.2f} m, '
+                f'vy={cmd.linear.y:.2f} m/s, '
+                f'w={cmd.angular.z:.2f} rad/s'
+            )
         else:
             cmd.linear.x = 0.5 * self.forward_speed
             cmd.linear.y = -self.lateral_speed
@@ -223,11 +255,11 @@ class HolonomicObstacleWallFollower(Node):
             return
 
         if progress >= self.max_front_length:
-            self.short_obstacle = False
+            self.obstacle_is_long = True
 
         if closest == self.FRONT_RIGHT:
             obstacle_type = (
-                'short obstacle' if self.short_obstacle else 'long wall'
+                'long wall' if self.obstacle_is_long else 'short obstacle'
             )
             self.change_state(
                 self.FRONT_RIGHT,
@@ -236,7 +268,7 @@ class HolonomicObstacleWallFollower(Node):
             self.follow_front_right(measurements, closest, cmd)
             return
 
-        if not self.short_obstacle:
+        if self.obstacle_is_long:
             if closest == self.RIGHT:
                 self.change_state(self.RIGHT, 'long front wall reached RIGHT')
                 self.follow_right(measurements, closest, cmd)
@@ -264,7 +296,7 @@ class HolonomicObstacleWallFollower(Node):
             self.follow_right(measurements, closest, cmd)
             return
 
-        if not self.short_obstacle:
+        if self.obstacle_is_long:
             cmd.angular.z = self.turn_speed
             self.report(
                 f'FRONT_RIGHT: long wall, turning; closest={closest}'
@@ -280,7 +312,7 @@ class HolonomicObstacleWallFollower(Node):
             return
 
         cmd.linear.x = self.forward_speed
-        cmd.linear.y = self.DIAGONAL_FACTOR * self.lateral_speed
+        cmd.linear.y = self.diagonal_factor * self.lateral_speed
         self.report(f'FRONT_RIGHT: diagonal +vx/+vy, closest={closest}')
 
     def follow_back_right(self, measurements, closest, cmd):
@@ -290,7 +322,7 @@ class HolonomicObstacleWallFollower(Node):
             return
 
         cmd.linear.x = self.forward_speed
-        cmd.linear.y = -self.DIAGONAL_FACTOR * self.lateral_speed
+        cmd.linear.y = -self.diagonal_factor * self.lateral_speed
         self.report(f'BACK_RIGHT: diagonal +vx/-vy, closest={closest}')
 
     def scan_callback(self, scan):

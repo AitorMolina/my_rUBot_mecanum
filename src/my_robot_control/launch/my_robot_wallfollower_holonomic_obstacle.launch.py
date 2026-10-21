@@ -12,6 +12,8 @@ def generate_launch_description():
         'lateral_speed',
         'turn_speed',
         'detection_limit',
+        'lateral_gain',
+        'alignment_gain',
     )
 
     return LaunchDescription([
@@ -21,6 +23,8 @@ def generate_launch_description():
         DeclareLaunchArgument('lateral_speed', default_value='0.30'),
         DeclareLaunchArgument('turn_speed', default_value='0.60'),
         DeclareLaunchArgument('detection_limit', default_value='1.20'),
+        DeclareLaunchArgument('lateral_gain', default_value='0.5'),
+        DeclareLaunchArgument('alignment_gain', default_value='0.5'),
         Node(
             package='my_robot_control',
             executable='my_robot_wallfollower_holonomic_obstacle_exec',
