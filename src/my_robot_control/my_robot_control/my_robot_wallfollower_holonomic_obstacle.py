@@ -35,17 +35,17 @@ class HolonomicObstacleWallFollower(Node):
 
         # Forward velocity of the robot (m/s).
         self.forward_speed = float(
-            self.declare_parameter('forward_speed', 0.25).value
+            self.declare_parameter('forward_speed', 0.20).value
         )
 
         # Maximum lateral velocity of the robot (m/s).
         self.lateral_speed = float(
-            self.declare_parameter('lateral_speed', 0.30).value
+            self.declare_parameter('lateral_speed', 0.20).value
         )
 
         # Angular velocity used when turning (rad/s).
         self.turn_speed = float(
-            self.declare_parameter('turn_speed', 0.60).value
+            self.declare_parameter('turn_speed', 1.00).value
         )
 
         # Maximum LiDAR distance used to detect an obstacle (m).
@@ -55,7 +55,7 @@ class HolonomicObstacleWallFollower(Node):
 
         # Gain used to correct the distance to the right wall.
         self.lateral_gain = float(
-            self.declare_parameter('lateral_gain', 0.5).value
+            self.declare_parameter('lateral_gain', 2.0).value
         )
 
         # Gain used to keep the robot parallel to the right wall.
@@ -76,6 +76,7 @@ class HolonomicObstacleWallFollower(Node):
 
         self.state = self.RIGHT
         self.obstacle_is_long = False
+        self.passing_short_obstacle = False
         self.command = Twist()
         self.odom_pose = None
         self.front_start_pose = None
@@ -218,6 +219,7 @@ class HolonomicObstacleWallFollower(Node):
 
             self.front_start_pose = self.odom_pose
             self.obstacle_is_long = False
+            self.passing_short_obstacle = False
             self.change_state(self.FRONT, 'frontal obstacle detected')
             cmd.linear.y = self.lateral_speed
             return
@@ -239,8 +241,11 @@ class HolonomicObstacleWallFollower(Node):
                 self.lateral_speed,
             )
 
-            # The closest point on a parallel right wall should be at -90 deg.
-            if self.right_angle is not None:
+            # Do not align with the corner while passing a short obstacle.
+            if self.passing_short_obstacle:
+                cmd.angular.z = 0.0
+            # The closest point on a parallel wall should be at -90 degrees.
+            elif self.right_angle is not None:
                 alignment_error = math.radians(self.right_angle + 90.0)
                 cmd.angular.z = clamp(
                     self.alignment_gain * alignment_error,
@@ -269,6 +274,7 @@ class HolonomicObstacleWallFollower(Node):
             self.obstacle_is_long = True
 
         if closest == self.FRONT_RIGHT:
+            self.passing_short_obstacle = not self.obstacle_is_long
             obstacle_type = (
                 'long wall' if self.obstacle_is_long else 'short obstacle'
             )
@@ -292,6 +298,7 @@ class HolonomicObstacleWallFollower(Node):
 
         # Graceful handling if a low-rate scan skips FRONT_RIGHT.
         if closest == self.RIGHT:
+            self.passing_short_obstacle = True
             self.change_state(self.RIGHT, 'short obstacle reached RIGHT')
             self.follow_right(measurements, closest, cmd)
             return
@@ -303,6 +310,8 @@ class HolonomicObstacleWallFollower(Node):
 
     def follow_front_right(self, measurements, closest, cmd):
         if closest == self.RIGHT:
+            if not self.obstacle_is_long:
+                self.passing_short_obstacle = True
             self.change_state(self.RIGHT, 'obstacle moved to RIGHT')
             self.follow_right(measurements, closest, cmd)
             return
@@ -315,6 +324,7 @@ class HolonomicObstacleWallFollower(Node):
             return
 
         if closest == self.BACK_RIGHT:
+            self.passing_short_obstacle = True
             self.change_state(
                 self.BACK_RIGHT,
                 'obstacle moved directly to BACK_RIGHT',
@@ -328,6 +338,7 @@ class HolonomicObstacleWallFollower(Node):
 
     def follow_back_right(self, measurements, closest, cmd):
         if closest == self.RIGHT:
+            self.passing_short_obstacle = False
             self.change_state(self.RIGHT, 'right wall recovered')
             self.follow_right(measurements, closest, cmd)
             return

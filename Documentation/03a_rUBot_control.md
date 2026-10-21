@@ -392,11 +392,11 @@ To test your designed activity node, keep the same simulation running and execut
 ros2 launch my_robot_control my_robot_wallfollower_holonomic_obstacle.launch.py \
   follow_distance:=0.35 \
   max_front_length:=0.50 \
-  forward_speed:=0.25 \
-  lateral_speed:=0.30 \
-  turn_speed:=0.60 \
+  forward_speed:=0.20 \
+  lateral_speed:=0.20 \
+  turn_speed:=1.00 \
   detection_limit:=1.20 \
-  lateral_gain:=0.5 \
+  lateral_gain:=2.0 \
   alignment_gain:=2.0
 ```
 
@@ -410,6 +410,12 @@ both its lateral distance and its angle to remain parallel to the wall. The
 status message shows the measured `distance`, the angle of the closest right
 rays, `vy` and `w`. When the robot is parallel, the measured angle should be
 close to `-90 deg` and `w` should approach zero.
+
+While a short obstacle moves temporarily through the `RIGHT` region, the
+controller keeps the lateral distance correction but sets `w=0`. This avoids
+trying to align the robot with the obstacle corner. Angular alignment is
+enabled again after the transition from `BACK_RIGHT` to the recovered right
+wall.
 
 Stop the controller with `Ctrl+C` and restore the initial simulated pose before the next test:
 
