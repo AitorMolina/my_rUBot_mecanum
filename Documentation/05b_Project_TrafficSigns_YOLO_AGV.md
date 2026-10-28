@@ -6,7 +6,7 @@ perception and navigation in separate ROS 2 packages:
 
 | Package | Responsibility |
 | --- | --- |
-| `my_robot_ai_identification` | Camera image to traffic-sign class |
+| `my_robot_ai_perception` | Camera image to traffic-sign class |
 | `my_robot_ai_navigation` | Traffic-sign class to route decision |
 | `my_robot_nav_control` | General navigation tools not tied to AI |
 
@@ -19,8 +19,8 @@ first step in The Construct and before every real-robot test.
 /camera/image_raw
         |
         v
-traffic_sign_yolo
-(my_robot_ai_identification)
+traffic_sign_classifier
+(my_robot_ai_perception)
         |
         | /traffic_sign  [std_msgs/msg/String]
         v
@@ -61,7 +61,7 @@ Build the perception and AI-navigation packages:
 ```bash
 cd ~/my_rUBot_mecanum
 colcon build --symlink-install \
-  --packages-select my_robot_ai_identification my_robot_ai_navigation
+  --packages-select my_robot_ai_perception my_robot_ai_navigation
 source install/setup.bash
 ```
 
@@ -191,12 +191,8 @@ ros2 topic hz /camera/image_raw
 Start the simple classifier interface:
 
 ```bash
-ros2 launch my_robot_ai_identification traffic_sign_yolo.launch.py \
-  image_topic:=/camera/image_raw \
-  model:=yolo11n_cls_g1.pt \
-  confidence:=0.70 \
-  stable_frames:=3 \
-  use_sim_time:=true
+ros2 launch my_robot_ai_perception traffic_sign_classifier.launch.py \
+  config_file:=traffic_sign_classifier_sw.yaml
 ```
 
 The node publishes:
@@ -274,12 +270,8 @@ safe with manual messages.
 Start the detector with the real camera topic:
 
 ```bash
-ros2 launch my_robot_ai_identification traffic_sign_yolo.launch.py \
-  image_topic:=/image_raw \
-  model:=yolo11n_cls_g1.pt \
-  confidence:=0.70 \
-  stable_frames:=3 \
-  use_sim_time:=false
+ros2 launch my_robot_ai_perception traffic_sign_classifier.launch.py \
+  config_file:=traffic_sign_classifier_real.yaml
 ```
 
 Before moving the robot, show each sign to the camera and verify:
@@ -318,6 +310,10 @@ Nav2 goal
 The following implementation is the previous working solution. Its nodes,
 launch files and configuration files are intentionally preserved until the
 new interface has been validated in simulation and on the real robot.
+
+The `my_robot_ai_identification` package and `custom_msgs` remain available
+for this legacy implementation. The new `my_robot_ai_perception` and
+`my_robot_ai_navigation` packages do not depend on them.
 
 ### Previous project description
 
