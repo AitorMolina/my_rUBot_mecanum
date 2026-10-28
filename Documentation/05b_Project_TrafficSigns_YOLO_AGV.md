@@ -84,11 +84,11 @@ Each pose uses `[x, y, yaw]` in the `map` frame:
 traffic_sign_navigation:
   ros__parameters:
     use_sim_time: true
-    initial_pose: [0.0, 0.0, 0.0]
-    inspection_pose: [0.5, -1.0, 1.57]
-    left_waypoint: [-0.8, 0.3, 1.57]
-    right_waypoint: [0.8, 0.3, 1.57]
-    final_pose: [0.0, 1.3, 1.57]
+    initial_pose: [-0.5, 0.0, 0.0]
+    inspection_pose: [0.0, 0.0, 0.0]
+    left_waypoint: [0.5, 1.0, 0.0]
+    right_waypoint: [0.5, -1.0, 0.0]
+    final_pose: [2.0, 1.0, 1.57]
     stop_duration: 3.0
 ```
 
@@ -122,7 +122,7 @@ of the future YOLO detector.
 ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py \
   world:=square_sign_left_ign.world \
   robot_model:=rubot/rubot_mecanum.urdf.xacro \
-  x:=0.0 y:=0.0 yaw:=0.0
+  x:=-0.5 y:=0.0 yaw:=0.0
 ```
 
 ### 4.2 Start Nav2
@@ -201,6 +201,16 @@ The node publishes:
 | --- | --- | --- |
 | `/traffic_sign` | `std_msgs/msg/String` | Stable normalized class |
 | `/traffic_sign/image` | `sensor_msgs/msg/Image` | Annotated image |
+
+The following illustrative figure shows the expected camera view at the
+inspection pose and the classification overlay published on
+`/traffic_sign/image`:
+
+![Illustrative left and right traffic-sign classification from the inspection pose](./Images/07_Yolo/traffic_sign_classifier_view.png)
+
+The manual `ros2 topic pub` command used in The Construct publishes only the
+class message; it does not create an annotated image. The overlay is generated
+by `my_robot_ai_perception` when it processes a real or simulated camera image.
 
 Verify the classifier before starting autonomous navigation:
 
