@@ -206,7 +206,7 @@ The following illustrative figure shows the expected camera view at the
 inspection pose and the classification overlay published on
 `/traffic_sign/image`:
 
-![Illustrative left and right traffic-sign classification from the inspection pose](./Images/07_Yolo/traffic_sign_classifier_view.png)
+![Illustrative route classification: no left turn selects right, and no right turn selects left](./Images/07_Yolo/traffic_sign_classifier_view.png)
 
 The manual `ros2 topic pub` command used in The Construct publishes only the
 class message; it does not create an annotated image. The overlay is generated
