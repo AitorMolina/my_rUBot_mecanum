@@ -231,14 +231,25 @@ dataset, train the model or test YOLO locally.
 
 ### Windows
 
-```bash
-py -3.11 -m venv .venv
-.venv\Scripts\activate
+Open **PowerShell** in the repository root. Create one virtual environment per
+Windows user (or per checkout) and activate it with:
+
+```powershell
+py -3.11 -m venv .venv-yolo
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv-yolo\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install ultralytics "numpy<2.0" pillow opencv-python
+python -m pip install "ultralytics>=8.3" "numpy<2.0"
 ```
 
-Change `3.11` if another compatible Python version is installed.
+`Set-ExecutionPolicy` affects only the current PowerShell window; it is needed
+only if PowerShell blocks `Activate.ps1`. It does not change the computer-wide
+policy. On Command Prompt, use `.venv-yolo\Scripts\activate.bat` instead.
+
+Ultralytics installs its required Pillow and OpenCV packages, so listing them
+separately is unnecessary. Change `3.11` if another compatible Python version
+is installed. Once activated, run all the examples below with `python`, rather
+than `py -3.11`, so they use this environment.
 
 ### Ubuntu or a ROS 2 development container
 
@@ -253,6 +264,14 @@ The `--system-site-packages` option makes the ROS 2 Python packages available
 inside the virtual environment. Do not uninstall or force-reinstall the system
 versions of NumPy or OpenCV in a working ROS 2 installation, because this can
 break packages such as `cv_bridge`.
+
+Create this environment separately for every Ubuntu account that will run the
+YOLO scripts: for example, once as `biorob` and once as `students`. Do not
+create or use it as `root`, and do not use `sudo pip`. Virtual environments are
+user-owned and are not automatically shared between accounts. A shared
+read-only environment can be set up later by an administrator if disk space is
+important, but it is not recommended for classroom work because package updates
+by one user would affect everyone.
 
 Ultralytics is not required for activity A6 in The Construct. In that
 environment, the classifier output is simulated by publishing `left`, `right`
@@ -282,7 +301,7 @@ photos/
         - In a new terminal, run:
 
         ```bash
-        py -3.11 tools/yolo_model_generation/classification/capture_ros.py
+        python tools/yolo_model_generation/classification/capture_ros.py
         ```
         - Verify the topic name and change `OUTPUT_RELATIVE_PATH` for each traffic sign. Images are saved under `tools/yolo_model_generation/workspace/photos/`.
 - Use `tools/yolo_model_generation/classification/prepare_dataset.py` to resize the images to 640 × 640 pixels and create the following dataset structure:
@@ -314,7 +333,7 @@ traffic_sign_dataset/
         - In a new terminal, run:
 
         ```bash
-        py -3.11 tools/yolo_model_generation/classification/infer_ros.py
+        python tools/yolo_model_generation/classification/infer_ros.py
         ```
         - Verify the topic name and `MODEL_PATH`.
 
@@ -366,7 +385,7 @@ To label the traffic signs in the images and train a model, we will use Roboflow
 - Train the detection model with:
 
     ```bash
-    py -3.11 tools/yolo_model_generation/detection/train.py
+    python tools/yolo_model_generation/detection/train.py
     ```
 
 - **To test the model prediction** with the trained object-detection model:
@@ -377,7 +396,7 @@ To label the traffic signs in the images and train a model, we will use Roboflow
         - In a new terminal, run:
 
         ```bash
-        py -3.11 tools/yolo_model_generation/detection/infer_ros.py
+        python tools/yolo_model_generation/detection/infer_ros.py
         ```
 
 
@@ -390,7 +409,7 @@ humans.
 2. Run the Python program:
 
 ```bash
-py -3.11 tools/yolo_model_generation/pose/pose_gesture_webcam.py
+python tools/yolo_model_generation/pose/pose_gesture_webcam.py
 ```
 
 ![](./Images/07_Yolo/01_Yolo_Pose_Detection.png)
