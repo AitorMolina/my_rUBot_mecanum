@@ -216,6 +216,16 @@ Only a validated deployment model should be copied to:
 src/AI_Projects/my_robot_ai_perception/models/
 ```
 
+For standalone verification with a ROS 2 camera, keep the selected
+classification model in:
+
+```text
+tools/yolo_model_generation/classification/yolo_models/
+```
+
+The copies used for verification and deployment must have the same filename
+and content.
+
 The original material under
 `Documentation/Files/YOLO_model_generation/` is preserved as a legacy copy
 during migration, but new experiments should use `tools/yolo_model_generation`.
@@ -277,6 +287,50 @@ Ultralytics is not required for activity A6 in The Construct. In that
 environment, the classifier output is simulated by publishing `left`, `right`
 or `stop` on `/traffic_sign`. Ultralytics is only needed when running the real
 or simulated camera classifier.
+
+### Verify a classification model from a ROS 2 camera
+
+First start the camera or robot bringup in another terminal. From the
+repository root, source ROS 2 and activate the YOLO environment, then verify
+the available image topic:
+
+```bash
+source /opt/ros/humble/setup.bash
+source .venv-yolo/bin/activate
+ros2 topic hz /image_raw
+```
+
+Run the standalone classifier:
+
+```bash
+python tools/yolo_model_generation/classification/infer_ros.py
+```
+
+By default it uses
+`tools/yolo_model_generation/classification/yolo_models/yolo11n_cls_g1.pt`
+and subscribes to `/image_raw`. Press `q` in the OpenCV window to exit.
+
+For Gazebo, the camera topic is normally `/camera/image_raw`:
+
+```bash
+python tools/yolo_model_generation/classification/infer_ros.py \
+  --image-topic /camera/image_raw
+```
+
+To verify another model saved in `yolo_models/`, pass its filename. Relative
+model paths are resolved from the `classification/` directory:
+
+```bash
+python tools/yolo_model_generation/classification/infer_ros.py \
+  --model yolo_models/yolo11n_cls_g2.pt \
+  --image-topic /image_raw
+```
+
+Models created by training remain in
+`workspace/runs/classify/train/weights/best.pt`. Once a model is validated,
+copy it to `classification/yolo_models/` for standalone testing and to
+`src/AI_Projects/my_robot_ai_perception/models/` for ROS 2 deployment. Use the
+same explicit versioned filename in both locations.
 
 ## 1. YOLO Model Generation for a Classification Task
 
